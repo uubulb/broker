@@ -136,7 +136,7 @@ func run() {
 	}()
 
 	for profile, config := range brokerConfig.Servers {
-		monitor.GetServerConfig(&config)
+		monitor.GetServerConfig(profile, &config)
 
 		go func(profile string, config model.Server) {
 			for {
@@ -144,9 +144,10 @@ func run() {
 				case <-ctx.Done():
 					return
 				default:
-					source, err := monitor.GetData(config.DataType)
+					source, err := monitor.GetData(profile, config.DataType)
 					if err != nil {
 						println("failed to fetch data from source: ", err)
+						initializedMap.Store(profile, false)
 					} else {
 						sourcesMap.Store(profile, &source)
 					}
@@ -323,8 +324,8 @@ func reportStateDaemon(profile string, cfg model.Server) {
 func reportState(profile string, lastReportHostInfo time.Time) time.Time {
 	sourceI, sOk := sourcesMap.Load(profile)
 	clientI, cOk := clientsMap.Load(profile)
-	_, iOk := initializedMap.Load(profile)
-	if sOk && cOk && iOk {
+	initializedI, iOk := initializedMap.Load(profile)
+	if sOk && cOk && iOk && initializedI.(bool) {
 		timeOutCtx, cancel := context.WithTimeout(context.Background(), networkTimeOut)
 		source := *sourceI.(*handler.Handler)
 		client := *clientI.(*pb.NezhaServiceClient)

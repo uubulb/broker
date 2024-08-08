@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/uubulb/broker/model"
 	"github.com/uubulb/broker/pkg/handler"
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	serverConfig *model.Server
+	serverConfig sync.Map
 	brokerConfig *model.Config
 	httpClient   = &http.Client{}
 )
@@ -29,45 +30,49 @@ func InitConfig(cfg *model.Config) {
 	brokerConfig = cfg
 }
 
-func GetServerConfig(cfg *model.Server) {
-	serverConfig = cfg
+func GetServerConfig(profile string, cfg *model.Server) {
+	serverConfig.Store(profile, cfg)
 }
 
-func GetData(dataType uint32) (handler.Handler, error) {
-	url := serverConfig.Source
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	if serverConfig.Auth {
-		req.Header.Add(serverConfig.AuthHeader, serverConfig.AuthPassword)
-	}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+func GetData(profile string, dataType uint32) (handler.Handler, error) {
+	cfgI, ok := serverConfig.Load(profile)
+	if ok {
+		cfg := cfgI.(*model.Server)
+		url := cfg.Source
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		if cfg.Auth {
+			req.Header.Add(cfg.AuthHeader, cfg.AuthPassword)
+		}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
 
-	switch dataType {
-	case TypeNezha:
-		pbData := &pb.Data{}
-		err = proto.Unmarshal(data, pbData)
-		if err != nil {
-			return nil, err
+		switch dataType {
+		case TypeNezha:
+			pbData := &pb.Data{}
+			err = proto.Unmarshal(data, pbData)
+			if err != nil {
+				return nil, err
+			}
+			stats := handler.PB2DataNezha(pbData)
+			return &stats, nil
+		case TypeNezhaJSON:
+			stats := &handler.TypeNezha{}
+			err = util.Json.Unmarshal(data, stats)
+			if err != nil {
+				return nil, err
+			}
+			return stats, nil
 		}
-		stats := handler.PB2DataNezha(pbData)
-		return &stats, nil
-	case TypeNezhaJSON:
-		stats := &handler.TypeNezha{}
-		err = util.Json.Unmarshal(data, stats)
-		if err != nil {
-			return nil, err
-		}
-		return stats, nil
 	}
 
 	return nil, fmt.Errorf("error getting data from source")
