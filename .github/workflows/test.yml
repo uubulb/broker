@@ -1,0 +1,57 @@
+name: Run Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - ".github/release.yml"
+      - README.md
+      - .gitignore
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Unit test
+        run: |
+          go test -v ./...
+
+
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        goarch: [amd64, 386, arm64, riscv64, arm]
+        
+    runs-on: ubuntu-latest
+    env:
+      GOOS: linux
+      GOARCH: ${{ matrix.goarch }}
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: false
+
+      - name: Build test
+        run: |
+          go build -ldflags '-s -w' -trimpath ./cmd/broker
