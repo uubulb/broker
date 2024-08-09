@@ -18,8 +18,6 @@ markdown_extensions:
 theme:
   name: material
   logo: logo.svg
-  logo_dark_mode: 'logo.svg'
-  logo_light_mode: 'logo_dark.svg'
   favicon: null
   features:
     - search.highlight
