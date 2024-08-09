@@ -7,11 +7,9 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/uubulb/broker/model"
@@ -115,9 +113,6 @@ func preRun(cmd *cobra.Command, args []string) {
 }
 
 func run() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// 更新IP信息
 	if brokerConfig.IPQuery {
 		go monitor.UpdateIP(brokerConfig.UseIPv6CountryCode, brokerConfig.IPReportPeriod)
@@ -125,34 +120,20 @@ func run() {
 
 	done := make(chan struct{})
 
-	// 捕获 INT, TERM 信号
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-		<-c
-		log.Println("Received interrupt signal, cancelling...")
-		cancel()
-		close(done)
-	}()
-
 	for profile, config := range brokerConfig.Servers {
 		monitor.GetServerConfig(profile, &config)
 
 		go func(profile string, config model.Server) {
 			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					source, err := monitor.GetData(profile, config.DataType)
-					if err != nil {
-						println("failed to fetch data from source: ", err)
-						initializedMap.Store(profile, false)
-					} else {
-						sourcesMap.Store(profile, &source)
-					}
-					time.Sleep(time.Second * time.Duration(config.FetchInterval))
+				source, err := monitor.GetData(profile, config.DataType)
+				if err != nil {
+					println("failed to fetch data from source: ", err)
+					initializedMap.Store(profile, false)
+				} else {
+					sourcesMap.Store(profile, &source)
 				}
+				time.Sleep(time.Second * time.Duration(config.FetchInterval))
+
 			}
 		}(profile, config)
 
@@ -162,20 +143,17 @@ func run() {
 
 		go func(profile string, config model.Server) {
 			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					if source, ok := sourcesMap.Load(profile); ok {
-						conn := establish(config)
-						client := pb.NewNezhaServiceClient(conn)
-						clientsMap.Store(profile, &client)
 
-						if err := registerAndExecuteTasks(ctx, profile, client, source.(*handler.Handler)); err != nil {
-							println("Error in registerAndExecuteTasks:", err)
-							retry(profile, conn)
-						}
+				if source, ok := sourcesMap.Load(profile); ok {
+					conn := establish(config)
+					client := pb.NewNezhaServiceClient(conn)
+					clientsMap.Store(profile, &client)
+
+					if err := registerAndExecuteTasks(profile, client, source.(*handler.Handler)); err != nil {
+						println("Error in registerAndExecuteTasks:", err)
+						retry(profile, conn)
 					}
+
 				}
 			}
 		}(profile, config)
@@ -292,8 +270,8 @@ func retry(profile string, conn *grpc.ClientConn) {
 	time.Sleep(delayWhenError)
 }
 
-func registerAndExecuteTasks(ctx context.Context, profile string, client pb.NezhaServiceClient, source *handler.Handler) error {
-	timeOutCtx, cancel := context.WithTimeout(ctx, networkTimeOut)
+func registerAndExecuteTasks(profile string, client pb.NezhaServiceClient, source *handler.Handler) error {
+	timeOutCtx, cancel := context.WithTimeout(context.Background(), networkTimeOut)
 	defer cancel()
 
 	host := *source
@@ -302,7 +280,7 @@ func registerAndExecuteTasks(ctx context.Context, profile string, client pb.Nezh
 	}
 	initializedMap.Store(profile, true)
 
-	tasks, err := client.RequestTask(ctx, host.GetHost().PB())
+	tasks, err := client.RequestTask(context.Background(), host.GetHost().PB())
 	if err != nil {
 		return fmt.Errorf("请求任务失败：%w", err)
 	}

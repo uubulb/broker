@@ -18,7 +18,7 @@ func (t *TypeNezha) GetState() *model.HostState {
 	return t.State
 }
 
-func PB2DataNezha(d *pb.Data) TypeNezha {
+func PB2DataNezha(d *pb.Data, name string) TypeNezha {
 	h := d.GetHost()
 	s := d.GetState()
 
@@ -43,7 +43,7 @@ func PB2DataNezha(d *pb.Data) TypeNezha {
 			BootTime:        h.GetBootTime(),
 			IP:              h.GetIp(),
 			CountryCode:     h.GetCountryCode(),
-			Version:         h.GetVersion(),
+			Version:         h.GetVersion() + name,
 			GPU:             h.GetGpu(),
 		},
 		State: &model.HostState{

@@ -63,7 +63,7 @@ func GetData(profile string, dataType uint32) (handler.Handler, error) {
 			if err != nil {
 				return nil, err
 			}
-			stats := handler.PB2DataNezha(pbData)
+			stats := handler.PB2DataNezha(pbData, cfg.VersionSuffix)
 			return &stats, nil
 		case TypeNezhaJSON:
 			stats := &handler.TypeNezha{}

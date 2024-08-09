@@ -14,8 +14,10 @@ You may add your own collector here if you like.
 
 ## TODOs
 - Online documentation
-- Prometheus format
+- ~~Prometheus format~~
 - Support other task types (unlikely)
 - Telnet?
 
 Feel free to contribute or provide feedback to help improve this project!
+
+Note: This work is not officially endorsed by Nezha or its authors.

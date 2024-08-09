@@ -15,6 +15,7 @@ type Server struct {
 	AuthHeader    string `mapstructure:"auth_header"`
 	AuthPassword  string `mapstructure:"auth_password"`
 	DataType      uint32 `mapstructure:"data_type"`
+	VersionSuffix string `mapstructure:"version_suffix"`
 	FetchInterval uint32 `mapstructure:"fetch_interval"`
 	SSH           SSHConfig
 	Remote        string
@@ -69,6 +70,9 @@ func (c *Config) Read(path string) error {
 			}
 			path := strings.Replace(server.SSH.Key, "~", usr.HomeDir, 1)
 			server.SSH.Key, _ = filepath.Abs(path)
+		}
+		if server.VersionSuffix == "" {
+			server.VersionSuffix = "-broker"
 		}
 		c.Servers[key] = server
 	}
