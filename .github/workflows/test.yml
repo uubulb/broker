@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths-ignore:
-      - ".github/release.yml"
+      - ".github/workflows/release.yml"
       - README.md
       - .gitignore
   pull_request:
