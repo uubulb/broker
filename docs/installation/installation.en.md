@@ -1,0 +1,1 @@
+You can get latest release here: <https://github.com/uubulb/broker/releases>

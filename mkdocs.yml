@@ -1,0 +1,89 @@
+site_name: Broker for Nezha
+copyright: 2024 uubulb
+repo_url: https://github.com/uubulb/broker
+repo_name: uubulb/broker
+site_url: https://broker.kuzu.uk
+extra:
+  generator: false
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+theme:
+  name: material
+  logo: logo.svg
+  logo_dark_mode: 'logo.svg'
+  logo_light_mode: 'logo_dark.svg'
+  favicon: null
+  features:
+    - search.highlight
+    - navigation.tracking
+    - navigation.instant
+    - navigation.path
+    - navigation.indexes
+    - navigation.tracking
+    - navigation.top
+    - navigation.tabs
+    - navigation.sections
+    - toc.follow
+    - content.code.copy
+    - content.code.select
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/link
+        name: Switch to light mode
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+plugins:
+  - search
+  - awesome-pages
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - build: true
+          default: true
+          locale: zh
+          name: 简体中文
+        - build: true
+          default: false
+          locale: en
+          name: English
+          nav_translations:
+            主页: Home
+            安装: Installation
+            配置: Configuration
+            服务器: Servers
+            数据类型: Data types
+
+nav:
+  - 主页: index.md
+  - 安装: installation/installation.md
+  - 配置:
+      - 配置: configuration/index.md
+      - 服务器: configuration/server.md
+      - 数据类型: configuration/type.md
