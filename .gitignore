@@ -4,3 +4,4 @@
 *.pprof
 dist
 /config.*
+/venv

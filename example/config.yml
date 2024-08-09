@@ -23,9 +23,9 @@ server:
   # add more servers if you like
   # example2
   #   ...
-ip_query: true
 
 # nezha-agent fields
 debug: true
+ip_query: true
 use_ipv6_countrycode: false
 dns: []

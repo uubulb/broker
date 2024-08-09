@@ -2,6 +2,9 @@
 
 A modified version of [Nezha Agent](https://github.com/nezhahq/agent), with features that shouldn't be in it.
 
+## Documentation
+<https://broker.kuzu.uk/>
+
 ## Difference from Nezha Agent
 - Utilizes external data sources to report to **Nezha Dashboard**.
 - Supports configuring multiple sources and connecting to multiple Dashboards.
@@ -13,7 +16,6 @@ A modified version of [Nezha Agent](https://github.com/nezhahq/agent), with feat
 You may add your own collector here if you like.
 
 ## TODOs
-- Online documentation
 - ~~Prometheus format~~
 - Support other task types (unlikely)
 - Telnet?
