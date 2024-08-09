@@ -5,8 +5,8 @@ import (
 )
 
 type SensorTemperature struct {
-	Name        string
-	Temperature float64
+	Name        string  `json:"name"`
+	Temperature float64 `json:"temperature"`
 }
 
 type HostState struct {
