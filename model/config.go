@@ -11,6 +11,7 @@ import (
 
 type Server struct {
 	Source        string
+	SourceType    uint32 `mapstructure:"source_type"`
 	Auth          bool
 	AuthHeader    string `mapstructure:"auth_header"`
 	AuthPassword  string `mapstructure:"auth_password"`
@@ -41,6 +42,7 @@ type Config struct {
 	UseIPv6CountryCode bool   `mapstructure:"use_ipv6_country_code"`
 	IPReportPeriod     uint32 `mapstructure:"ip_report_period"`
 	DNS                []string
+	ListenAddr         string `mapstructure:"listen_addr"`
 	v                  *viper.Viper
 }
 
@@ -58,27 +60,72 @@ func (c *Config) Read(path string) error {
 	}
 
 	for key, server := range c.Servers {
-		if server.ReportDelay < 1 {
-			server.ReportDelay = 1
-		} else if server.ReportDelay > 4 {
-			server.ReportDelay = 4
-		}
-		if strings.HasPrefix(server.SSH.Key, "~") {
-			usr, err := user.Current()
-			if err != nil {
-				return fmt.Errorf("unable to get home dir: %v", err)
-			}
-			path := strings.Replace(server.SSH.Key, "~", usr.HomeDir, 1)
-			server.SSH.Key, _ = filepath.Abs(path)
-		}
-		if server.VersionSuffix == "" {
-			server.VersionSuffix = "-broker"
+		if err := validateServer(&server); err != nil {
+			return fmt.Errorf("server %s: %v", key, err)
 		}
 		c.Servers[key] = server
 	}
 
 	if c.IPReportPeriod < 1 {
 		c.IPReportPeriod = 1800
+	}
+
+	if c.ListenAddr == "" {
+		return fmt.Errorf("listen_addr is required")
+	}
+
+	return nil
+}
+
+func validateServer(server *Server) error {
+	if server.Source == "" {
+		return fmt.Errorf("server.source is required")
+	}
+	if server.SourceType == 0 {
+		return fmt.Errorf("server.source_type is required")
+	}
+	if server.Remote == "" {
+		return fmt.Errorf("server.remote is required")
+	}
+	if server.Password == "" {
+		return fmt.Errorf("server.password is required")
+	}
+	if server.ReportDelay < 1 {
+		server.ReportDelay = 1
+	} else if server.ReportDelay > 4 {
+		server.ReportDelay = 4
+	}
+	if server.SSH.Enabled {
+		if server.SSH.Host == "" {
+			return fmt.Errorf("server.ssh.host is required")
+		}
+		if server.SSH.User == "" {
+			return fmt.Errorf("server.ssh.user is required")
+		}
+		if server.SSH.UseKey {
+			if server.SSH.Key != "" {
+				if strings.HasPrefix(server.SSH.Key, "~") {
+					usr, err := user.Current()
+					if err != nil {
+						return fmt.Errorf("unable to get home dir: %v", err)
+					}
+					path := strings.Replace(server.SSH.Key, "~", usr.HomeDir, 1)
+					server.SSH.Key, _ = filepath.Abs(path)
+				}
+			} else {
+				return fmt.Errorf("server.ssh.key is required")
+			}
+		} else {
+			if server.SSH.Password == "" {
+				return fmt.Errorf("server.ssh.password is required")
+			}
+		}
+	}
+	if server.VersionSuffix == "" {
+		server.VersionSuffix = "-broker"
+	}
+	if server.DataType == 0 {
+		return fmt.Errorf("server.data_type is required")
 	}
 
 	return nil

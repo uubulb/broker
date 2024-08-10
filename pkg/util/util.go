@@ -20,6 +20,6 @@ func IsWindows() bool {
 
 func Println(enabled bool, v ...interface{}) {
 	if enabled {
-		Logger.Infof("NEZHA@%s>> %v", time.Now().Format("2006-01-02 15:04:05"), fmt.Sprint(v...))
+		Logger.Infof("BROKER@%s>> %v", time.Now().Format("2006-01-02 15:04:05"), fmt.Sprint(v...))
 	}
 }

@@ -54,6 +54,12 @@ const (
 	networkTimeOut = time.Second * 5
 )
 
+const (
+	_ uint32 = iota
+	TypeHTTP
+	TypeTCP
+)
+
 func init() {
 	net.DefaultResolver.PreferGo = true // 使用 Go 内置的 DNS 解析器解析域名
 	net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -119,21 +125,33 @@ func run() {
 	}
 
 	done := make(chan struct{})
+	monitor.StartTCPListener()
 
 	for profile, config := range brokerConfig.Servers {
 		monitor.GetServerConfig(profile, &config)
 
 		go func(profile string, config model.Server) {
 			for {
-				source, err := monitor.GetData(profile, config.DataType)
+				var source handler.Handler
+				var err error
+				switch config.SourceType {
+				case TypeHTTP:
+					source, err = monitor.GetData(profile, config.DataType)
+				case TypeTCP:
+					source, err = monitor.GetDataTCP(profile, config.DataType)
+				}
 				if err != nil {
-					println("failed to fetch data from source: ", err)
 					initializedMap.Store(profile, false)
 				} else {
 					sourcesMap.Store(profile, &source)
+					initializedMap.Store(profile, true)
 				}
-				time.Sleep(time.Second * time.Duration(config.FetchInterval))
-
+				sleepDuration := time.Second
+				if config.SourceType == TypeHTTP {
+					sleepDuration = time.Second * time.Duration(config.FetchInterval)
+					time.Sleep(time.Second * time.Duration(config.FetchInterval))
+				}
+				time.Sleep(sleepDuration)
 			}
 		}(profile, config)
 
@@ -143,7 +161,6 @@ func run() {
 
 		go func(profile string, config model.Server) {
 			for {
-
 				if source, ok := sourcesMap.Load(profile); ok {
 					conn := establish(config)
 					client := pb.NewNezhaServiceClient(conn)
@@ -153,7 +170,8 @@ func run() {
 						println("Error in registerAndExecuteTasks:", err)
 						retry(profile, conn)
 					}
-
+				} else {
+					time.Sleep(time.Second)
 				}
 			}
 		}(profile, config)
@@ -278,7 +296,6 @@ func registerAndExecuteTasks(profile string, client pb.NezhaServiceClient, sourc
 	if _, err := client.ReportSystemInfo(timeOutCtx, host.GetHost().PB()); err != nil {
 		return fmt.Errorf("上报系统信息失败：%w", err)
 	}
-	initializedMap.Store(profile, true)
 
 	tasks, err := client.RequestTask(context.Background(), host.GetHost().PB())
 	if err != nil {
