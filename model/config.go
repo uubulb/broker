@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"log"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -61,7 +62,7 @@ func (c *Config) Read(path string) error {
 
 	for key, server := range c.Servers {
 		if err := validateServer(&server); err != nil {
-			return fmt.Errorf("server %s: %v", key, err)
+			log.Fatalf("server %s: %v", key, err)
 		}
 		c.Servers[key] = server
 	}
@@ -78,8 +79,11 @@ func (c *Config) Read(path string) error {
 }
 
 func validateServer(server *Server) error {
-	if server.Source == "" {
-		return fmt.Errorf("server.source is required")
+	// TypeHTTP
+	if server.SourceType == 1 {
+		if server.Source == "" {
+			return fmt.Errorf("server.source is required")
+		}
 	}
 	if server.SourceType == 0 {
 		return fmt.Errorf("server.source_type is required")
