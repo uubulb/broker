@@ -3,6 +3,7 @@
 server: 
   example:
     source: http://10.0.0.1:36436
+    source_type: 1
     auth: false
     auth_header: Authorization
     auth_password: Bearer test
@@ -27,6 +28,9 @@ server:
 
 #### **source**
 The URL of the data source, supporting HTTP/HTTPS. HTTP/3 is not supported.
+
+#### **source_type**
+Type of the data source. 1 for HTTP, 2 for TCP.
 
 #### **auth**
 Enables HTTP authentication via headers.

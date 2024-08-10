@@ -3,6 +3,7 @@
 server: 
   example:
     source: http://10.0.0.1:36436
+    source_type: 1
     auth: false
     auth_header: Authorization
     auth_password: Bearer test
@@ -27,6 +28,9 @@ server:
 
 #### **source**
 数据源地址，可为 HTTP/HTTPS。不支持 HTTP/3。
+
+#### **source_type**
+数据源类型。1 为 HTTP，2 为 TCP。
 
 #### **auth**
 启用 HTTP 认证，目前只支持通过请求头完成认证。

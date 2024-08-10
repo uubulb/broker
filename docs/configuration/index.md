@@ -8,6 +8,7 @@ ip_query: false
 debug: false
 use_ipv6_countrycode: false
 dns: []
+listen_addr: 10.0.0.12:8088
 ```
 
 ## 字段
@@ -23,3 +24,6 @@ dns: []
 
 #### **dns**
 自定义 DNS 服务器列表。如不指定，使用内置 DNS 列表。
+
+#### **listen_addr**
+指定 TCP 服务器监听地址。
