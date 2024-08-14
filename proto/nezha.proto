@@ -84,4 +84,5 @@ message GeoIP {
 message Data {
     Host host = 1;
     State state = 2;
+    string config_name = 3;
 }

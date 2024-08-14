@@ -10,7 +10,6 @@ import (
 
 	"github.com/uubulb/broker/model"
 	"github.com/uubulb/broker/pkg/handler"
-	"github.com/uubulb/broker/pkg/nds"
 	"github.com/uubulb/broker/pkg/util"
 	pb "github.com/uubulb/broker/proto"
 
@@ -27,7 +26,6 @@ var (
 	brokerConfig           *model.Config
 	httpClient             = &http.Client{}
 	listener               net.Listener
-	once                   sync.Once
 )
 
 const (
@@ -45,9 +43,7 @@ func GetServerConfig(profile string, cfg *model.Server) {
 }
 
 func StartTCPListener() {
-	once.Do(func() {
-		go acceptConns()
-	})
+	go acceptConns()
 }
 
 func GetData(profile string, dataType uint32) (handler.Handler, error) {
@@ -96,12 +92,8 @@ func GetDataTCP(profile string, dataType uint32) (handler.Handler, error) {
 func processData(cfg *model.Server, data []byte, dataType uint32) (handler.Handler, error) {
 	switch dataType {
 	case TypeNezha:
-		_, pbBin, err := nds.Nds2PB(data)
-		if err != nil {
-			return nil, fmt.Errorf("nds.Nds2PB failed: %v", err)
-		}
 		pbData := &pb.Data{}
-		err = proto.Unmarshal(pbBin, pbData)
+		err := proto.Unmarshal(data, pbData)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal Protobuf data: %v", err)
 		}
@@ -158,7 +150,9 @@ func handleConnection(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	profile, _, _ := nds.Nds2PB(bin)
+	pbData := &pb.Data{}
+	_ = proto.Unmarshal(bin, pbData)
+	profile := pbData.GetConfigName()
 
 	if clientI, ok := tcpConns.Load(profile); ok {
 		existingClient := clientI.(*tcpClient)

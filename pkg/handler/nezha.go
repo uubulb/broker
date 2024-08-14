@@ -6,8 +6,9 @@ import (
 )
 
 type TypeNezha struct {
-	Host  *model.Host      `json:"host"`
-	State *model.HostState `json:"state"`
+	Host       *model.Host      `json:"host"`
+	State      *model.HostState `json:"state"`
+	ConfigName string           `json:"config_name"`
 }
 
 func (t *TypeNezha) GetHost() *model.Host {
@@ -16,6 +17,10 @@ func (t *TypeNezha) GetHost() *model.Host {
 
 func (t *TypeNezha) GetState() *model.HostState {
 	return t.State
+}
+
+func (t *TypeNezha) GetConfig() string {
+	return t.ConfigName
 }
 
 func PB2DataNezha(d *pb.Data, name string) TypeNezha {
@@ -65,5 +70,6 @@ func PB2DataNezha(d *pb.Data, name string) TypeNezha {
 			Temperatures:   ts,
 			GPU:            s.GetGpu(),
 		},
+		ConfigName: d.GetConfigName(),
 	}
 }

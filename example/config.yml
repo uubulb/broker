@@ -1,7 +1,8 @@
 # server configuration
 servers: 
   example: # server name
-    source: http://192.168.3.1:8888 # required
+    source: http://192.168.3.1:8888 # required if using HTTP
+    source_type: 2 # 1->HTTP, 2->TCP
     auth: false # optional, default to false
     auth_header: Authorization # optional
     auth_password: Bearer test # optional
@@ -17,7 +18,7 @@ servers:
       key: ~/.ssh/id_rsa # must have use_key enabled to take effect
     remote: example.com:443 # required
     password: test # required
-    tls: true # optional, default to false
+    tls: false # optional, default to false
     insecure: false # optional, default to false
     report_delay: 1 # optional, default to 1
   # add more servers if you like
@@ -25,7 +26,8 @@ servers:
   #   ...
 
 # nezha-agent fields
-debug: true
-ip_query: true
+debug: false
+ip_query: false
 use_ipv6_countrycode: false
+listen_addr: 0.0.0.0:8088 # required
 dns: []
