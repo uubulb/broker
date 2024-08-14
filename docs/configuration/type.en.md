@@ -1,24 +1,11 @@
 |Type|Info|
 |-|------|
-|1|Nezha data structure (Binary)|
+|1|Nezha data structure (Protobuf)|
 |2|Nezha data structure (JSON)|
 
 ## Examples
 ### Nezha data structure
-#### Binary
-The Nezha data structure binary format is composited by a configuration name and a Protobuf data.
-
-| Byte Position | Byte Content | Description                       |
-|---------------|--------------|-----------------------------------|
-| 0             | `0x01`       | Configuration name start marker   |
-| 1             | String       | Configuration name string         |
-| ...           | ...          | Subsequent characters of the string|
-| N             | `0x00`       | String termination marker (`\0`)  |
-| N+1           | `0x02`       | Protobuf data start marker        |
-| N+2           | Protobuf Data| Protobuf data                     |
-| ...           | ...          | Subsequent bytes of Protobuf data |
-
-##### Protobuf definition:
+#### Protobuf (definition)
 ```proto
 syntax = "proto3";
 
@@ -61,11 +48,11 @@ message State {
 message Data {
     Host host = 1;
     State state = 2;
+    string config_name = 3;
 }
 ```
 
 #### JSON
-Only HTTP method supports this data type now.
 ```json
 {
   "host": {
@@ -111,6 +98,7 @@ Only HTTP method supports this data type now.
         }
     ],
     "gpu": 0
-  }
+  },
+  "config_name": "example1"
 }
 ```

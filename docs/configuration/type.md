@@ -1,24 +1,11 @@
 |类型|说明|
 |-|------|
-|1|哪吒基本格式（二进制）|
+|1|哪吒基本格式（Protobuf）|
 |2|哪吒基本格式（JSON）|
 
 ## 示例
 ### 哪吒基本格式
-#### 二进制
-哪吒基本格式（二进制）由配置文件名和 Protobuf 数据组成。
-
-| 字节位置 | 字节内容 | 说明                        |
-|----------|----------|-----------------------------|
-| 0        | `0x01`   | 配置名称开始标识             |
-| 1        |    | 配置名称的字符串             |
-| ...      | ...      | 字符串的后续字符             |
-| N        | `0x00`   | 字符串结束标识（`\0`）      |
-| N+1      | `0x02`   | Protobuf 数据开始标识        |
-| N+2      | Protobuf 数据 | Protobuf 数据            |
-| ...      | ...      | Protobuf 数据的后续字节     |
-
-##### Protobuf 定义
+##### Protobuf （定义）
 ```proto
 syntax = "proto3";
 
@@ -61,11 +48,11 @@ message State {
 message Data {
     Host host = 1;
     State state = 2;
+    string config_name = 3;
 }
 ```
 
 #### JSON
-目前只有 HTTP 方式支持该格式。
 ```json
 {
   "host": {
@@ -111,6 +98,7 @@ message Data {
         }
     ],
     "gpu": 0
-  }
+  },
+  "config_name": "example1"
 }
 ```
