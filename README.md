@@ -1,6 +1,6 @@
 # Broker for Nezha
 
-A modified version of [Nezha Agent](https://github.com/nezhahq/agent), with features that shouldn't be in it.
+Yet another client for Nezha.
 
 ## Documentation
 <https://broker.kuzu.uk/>
@@ -9,7 +9,7 @@ A modified version of [Nezha Agent](https://github.com/nezhahq/agent), with feat
 - Utilizes external data sources to report to **Nezha Dashboard**.
 - Supports configuring multiple sources and connecting to multiple Dashboards.
 
-Currently, the broker supports the following tasks:
+Currently, Broker supports the following tasks:
 - `TaskTypeCommand`: Execute commands on a remote server via SSH.
 - `TaskTypeTerminalGRPC`: Open a shell on a remote server via SSH.
 - `TaskTypeReportHostInfo`: Trigger a report when Dashboard restarts.
@@ -25,7 +25,5 @@ You may add your own collector here if you like.
 ## TODOs
 - An interactive configuration editor
 - Telnet?
-
-Feel free to contribute or provide feedback to help improve this project!
 
 Note: This work is not officially endorsed by Nezha or its authors.
