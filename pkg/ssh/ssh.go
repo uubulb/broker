@@ -21,13 +21,22 @@ var (
 type SSH struct {
 	Client  *ssh.Client
 	Session *ssh.Session
-	Config  model.SSHConfig
+
+	config model.SSHConfig
+}
+
+func NewSSH(c model.SSHConfig) (*SSH, error) {
+	s := &SSH{config: c}
+	if err := s.createConn(); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 func (s *SSH) createConn() error {
 	var authConfig ssh.AuthMethod
-	if s.Config.UseKey {
-		key, err := os.ReadFile(s.Config.Key)
+	if s.config.UseKey {
+		key, err := os.ReadFile(s.config.Key)
 		if err != nil {
 			return fmt.Errorf("unable to read private key: %v", err)
 		}
@@ -37,12 +46,12 @@ func (s *SSH) createConn() error {
 		}
 		authConfig = ssh.PublicKeys(signer)
 	} else {
-		authConfig = ssh.Password(s.Config.Password)
+		authConfig = ssh.Password(s.config.Password)
 	}
 
 	var keyErr *knownhosts.KeyError
 	config := &ssh.ClientConfig{
-		User: s.Config.User,
+		User: s.config.User,
 		Auth: []ssh.AuthMethod{authConfig},
 		HostKeyCallback: ssh.HostKeyCallback(func(host string, remote net.Addr, pubKey ssh.PublicKey) error {
 			kh := checkKnownHosts()
@@ -57,7 +66,7 @@ func (s *SSH) createConn() error {
 	}
 
 	var err error
-	s.Client, err = ssh.Dial("tcp", s.Config.Host, config)
+	s.Client, err = ssh.Dial("tcp", s.config.Host, config)
 	if err != nil {
 		return fmt.Errorf("unable to create ssh client: %v", err)
 	}
@@ -65,12 +74,9 @@ func (s *SSH) createConn() error {
 }
 
 func (s *SSH) ExecuteCommand(cmd string) ([]byte, error) {
-	err := s.createConn()
-	if err != nil {
-		return nil, err
-	}
 	defer s.Client.Close()
 
+	var err error
 	s.Session, err = s.Client.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %v", err)
@@ -85,11 +91,7 @@ func (s *SSH) ExecuteCommand(cmd string) ([]byte, error) {
 }
 
 func (s *SSH) Redirect() (io.ReadWriteCloser, func(h, w int), error) {
-	err := s.createConn()
-	if err != nil {
-		return nil, nil, err
-	}
-
+	var err error
 	s.Session, err = s.Client.NewSession()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create session: %v", err)

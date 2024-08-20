@@ -12,8 +12,13 @@ const (
 	TaskTypeTerminalGRPC
 	TaskTypeNAT
 	TaskTypeReportHostInfo
+	TaskTypeFM
 )
 
 type TerminalTask struct {
+	StreamID string
+}
+
+type TaskFM struct {
 	StreamID string
 }

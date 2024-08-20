@@ -8,7 +8,14 @@ A modified version of [Nezha Agent](https://github.com/nezhahq/agent), with feat
 ## Difference from Nezha Agent
 - Utilizes external data sources to report to **Nezha Dashboard**.
 - Supports configuring multiple sources and connecting to multiple Dashboards.
-- Currently supports only two task types: `TaskTypeCommand` and `TaskTypeTerminalGRPC`, implemented using SSH.
+
+Currently, the broker supports the following tasks:
+- `TaskTypeCommand`: Execute commands on a remote server via SSH.
+- `TaskTypeTerminalGRPC`: Open a shell on a remote server via SSH.
+- `TaskTypeReportHostInfo`: Trigger a report when Dashboard restarts.
+- `TaskTypeFM`: Transfer files via SFTP.
+
+Other tasks that involve collecting data from local machine are not supported and should be handled directly using Nezha Agent.
 
 ## Data collectors available
 - [`nz-collector`](https://git.kuzu.uk/nz-collector.git/): A tiny system information collector for Linux systems.
@@ -16,8 +23,7 @@ A modified version of [Nezha Agent](https://github.com/nezhahq/agent), with feat
 You may add your own collector here if you like.
 
 ## TODOs
-- ~~Prometheus format~~
-- Support other task types (unlikely)
+- An interactive configuration editor
 - Telnet?
 
 Feel free to contribute or provide feedback to help improve this project!

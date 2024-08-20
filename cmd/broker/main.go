@@ -12,23 +12,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uubulb/broker/model"
-	"github.com/uubulb/broker/pkg/handler"
-	"github.com/uubulb/broker/pkg/monitor"
-	sshx "github.com/uubulb/broker/pkg/ssh"
-	"github.com/uubulb/broker/pkg/util"
-	pb "github.com/uubulb/broker/proto"
-
 	"github.com/nezhahq/service"
+	"github.com/pkg/sftp"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
+
+	"github.com/uubulb/broker/model"
+	"github.com/uubulb/broker/pkg/fm"
+	"github.com/uubulb/broker/pkg/handler"
+	"github.com/uubulb/broker/pkg/monitor"
+	sshx "github.com/uubulb/broker/pkg/ssh"
+	"github.com/uubulb/broker/pkg/util"
+	pb "github.com/uubulb/broker/proto"
 )
 
 type BrokerParam struct {
 	ConfigPath    string // 配置文件路径
+	TempDir       string // 指定临时文件夹
 	DisableSyslog bool   // 将日志输出到stderr
 	Version       bool
 }
@@ -89,6 +92,7 @@ func init() {
 	}
 
 	mainCmd.PersistentFlags().StringVarP(&brokerParam.ConfigPath, "config", "c", "config.yml", "specify the configuration file")
+	mainCmd.PersistentFlags().StringVar(&brokerParam.TempDir, "temp", "", "specify the temporary dir (default os.TempDir)")
 	mainCmd.PersistentFlags().BoolVar(&brokerParam.DisableSyslog, "disable-syslog", false, "print log to stderr")
 	mainCmd.PersistentFlags().BoolVarP(&brokerConfig.Debug, "debug", "d", false, "enable debug output")
 	mainCmd.PersistentFlags().BoolVar(&brokerConfig.IPQuery, "ip-query", false, "enable IP query")
@@ -389,6 +393,9 @@ func doTask(profile string, task *pb.Task) {
 	case model.TaskTypeReportHostInfo:
 		reportState(profile, time.Time{})
 		return
+	case model.TaskTypeFM:
+		handleFMTask(profile, task)
+		return
 	case model.TaskTypeKeepalive:
 		return
 	default:
@@ -424,7 +431,13 @@ func handleCommandTask(profile string, task *pb.Task, result *pb.TaskResult) {
 			timeout.Stop()
 		}
 	}()
-	s := &sshx.SSH{Config: sc}
+	s, err := sshx.NewSSH(sc)
+	if err != nil {
+		result.Data += err.Error()
+		result.Delay = float32(time.Since(startedAt).Seconds())
+		return
+	}
+
 	output, err := s.ExecuteCommand(cmd)
 	if err != nil {
 		result.Data += fmt.Sprintf("%s\n%s", string(output), err.Error())
@@ -433,6 +446,7 @@ func handleCommandTask(profile string, task *pb.Task, result *pb.TaskResult) {
 		result.Data = string(output)
 		result.Successful = true
 	}
+
 	result.Delay = float32(time.Since(startedAt).Seconds())
 }
 
@@ -470,7 +484,12 @@ func handleTerminalTask(profile string, task *pb.Task) {
 		return
 	}
 
-	s := &sshx.SSH{Config: sc}
+	s, err := sshx.NewSSH(sc)
+	if err != nil {
+		println("Terminal SSH建立连接失败")
+		return
+	}
+
 	tty, setSize, err := s.Redirect()
 	if err != nil {
 		println("Terminal s.Redirect失败：", err)
@@ -505,7 +524,7 @@ func handleTerminalTask(profile string, task *pb.Task) {
 		if remoteData, err = remoteIO.Recv(); err != nil {
 			return
 		}
-		if remoteData.Data == nil || len(remoteData.Data) == 0 {
+		if len(remoteData.Data) == 0 {
 			return
 		}
 		switch remoteData.Data[0] {
@@ -523,6 +542,67 @@ func handleTerminalTask(profile string, task *pb.Task) {
 	}
 }
 
+func handleFMTask(profile string, task *pb.Task) {
+	sc := brokerConfig.Servers[profile].SSH
+	if !sc.Enabled {
+		println("此 Agent 已禁止命令执行")
+		return
+	}
+
+	var fmTask model.TaskFM
+	err := util.Json.Unmarshal([]byte(task.GetData()), &fmTask)
+	if err != nil {
+		printf("FM 任务解析错误: %v", err)
+		return
+	}
+
+	clientI, _ := clientsMap.Load(profile)
+	client := *clientI.(*pb.NezhaServiceClient)
+	remoteIO, err := client.IOStream(context.Background())
+	if err != nil {
+		println("Terminal IOStream失败：", err)
+		return
+	}
+
+	// 发送 StreamID
+	if err := remoteIO.Send(&pb.IOStreamData{Data: append([]byte{
+		0xff, 0x05, 0xff, 0x05,
+	}, []byte(fmTask.StreamID)...)}); err != nil {
+		printf("FM 发送StreamID失败: %v", err)
+		return
+	}
+
+	defer func() {
+		errCloseSend := remoteIO.CloseSend()
+		println("FM exit", fmTask.StreamID, nil, errCloseSend)
+	}()
+	println("FM init", fmTask.StreamID)
+
+	s, err := sshx.NewSSH(sc)
+	if err != nil {
+		remoteIO.Send(&pb.IOStreamData{Data: fm.CreateErr(err)})
+		return
+	}
+	sfc, err := sftp.NewClient(s.Client)
+	if err != nil {
+		remoteIO.Send(&pb.IOStreamData{Data: fm.CreateErr(err)})
+		return
+	}
+	defer sfc.Close()
+
+	fmc := fm.NewFMClient(remoteIO, sfc, brokerParam.TempDir, printf)
+	for {
+		var remoteData *pb.IOStreamData
+		if remoteData, err = remoteIO.Recv(); err != nil {
+			return
+		}
+		if len(remoteData.Data) == 0 {
+			return
+		}
+		fmc.DoTask(remoteData)
+	}
+}
+
 func generateQueue(start int, size int) []int {
 	var result []int
 	for i := start; i < start+size; i++ {
@@ -537,4 +617,8 @@ func generateQueue(start int, size int) []int {
 
 func println(v ...interface{}) {
 	util.Println(brokerConfig.Debug, v...)
+}
+
+func printf(format string, v ...interface{}) {
+	util.Printf(brokerConfig.Debug, format, v...)
 }
