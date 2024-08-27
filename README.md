@@ -23,6 +23,7 @@ Other tasks that involve collecting data from local machine are not supported an
 You may add your own collector here if you like.
 
 ## TODOs
+- Support virtualization platform APIs like Proxmox VE, incus...
 - An interactive configuration editor
 - Telnet?
 
