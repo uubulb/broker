@@ -315,7 +315,12 @@ func reportStateDaemon(profile string, cfg model.Server) {
 	defer println("reportState exit", time.Now(), "=>", err)
 	for {
 		// 为了更准确的记录时段流量，inited 后再上传状态信息
-		lastReportHostInfo = reportState(profile, lastReportHostInfo)
+		initializedI, iOk := initializedMap.Load(profile)
+		if iOk && initializedI.(bool) {
+			lastReportHostInfo = reportState(profile, lastReportHostInfo)
+		} else {
+			lastReportHostInfo = time.Time{}
+		}
 		time.Sleep(time.Second * time.Duration(cfg.ReportDelay))
 	}
 }
@@ -323,8 +328,7 @@ func reportStateDaemon(profile string, cfg model.Server) {
 func reportState(profile string, lastReportHostInfo time.Time) time.Time {
 	sourceI, sOk := sourcesMap.Load(profile)
 	clientI, cOk := clientsMap.Load(profile)
-	initializedI, iOk := initializedMap.Load(profile)
-	if sOk && cOk && iOk && initializedI.(bool) {
+	if sOk && cOk {
 		timeOutCtx, cancel := context.WithTimeout(context.Background(), networkTimeOut)
 		source := *sourceI.(*handler.Handler)
 		client := *clientI.(*pb.NezhaServiceClient)
