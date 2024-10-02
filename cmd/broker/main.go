@@ -58,7 +58,7 @@ const (
 )
 
 const (
-	_ uint32 = iota
+	_ uint8 = iota
 	TypeHTTP
 	TypeTCP
 )

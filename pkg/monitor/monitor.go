@@ -41,7 +41,7 @@ var (
 )
 
 const (
-	_ uint32 = iota
+	_ uint8 = iota
 	TypeNezha
 	TypeNezhaJSON
 )
@@ -58,7 +58,7 @@ func StartTCPListener() {
 	go acceptConns()
 }
 
-func GetData(profile string, dataType uint32) (handler.Handler, error) {
+func GetData(profile string, dataType uint8) (handler.Handler, error) {
 	cfgI, ok := serverConfig.Load(profile)
 	if ok {
 		cfg := cfgI.(*model.Server)
@@ -87,7 +87,7 @@ func GetData(profile string, dataType uint32) (handler.Handler, error) {
 	return nil, fmt.Errorf("server config for profile %s not found", profile)
 }
 
-func GetDataTCP(profile string, dataType uint32) (handler.Handler, error) {
+func GetDataTCP(profile string, dataType uint8) (handler.Handler, error) {
 	data, err := receive(profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to receive TCP data: %v", err)
@@ -101,7 +101,7 @@ func GetDataTCP(profile string, dataType uint32) (handler.Handler, error) {
 	return nil, fmt.Errorf("server config for profile %s not found", profile)
 }
 
-func processData(cfg *model.Server, data []byte, dataType uint32) (handler.Handler, error) {
+func processData(cfg *model.Server, data []byte, dataType uint8) (handler.Handler, error) {
 	switch dataType {
 	case TypeNezha:
 		pbData := &pb.Data{}

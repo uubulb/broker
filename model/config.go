@@ -12,11 +12,11 @@ import (
 
 type Server struct {
 	Source        string
-	SourceType    uint32 `mapstructure:"source_type"`
+	SourceType    uint8 `mapstructure:"source_type"`
 	Auth          bool
 	AuthHeader    string `mapstructure:"auth_header"`
 	AuthPassword  string `mapstructure:"auth_password"`
-	DataType      uint32 `mapstructure:"data_type"`
+	DataType      uint8  `mapstructure:"data_type"`
 	VersionSuffix string `mapstructure:"version_suffix"`
 	FetchInterval uint32 `mapstructure:"fetch_interval"`
 	SSH           SSHConfig
