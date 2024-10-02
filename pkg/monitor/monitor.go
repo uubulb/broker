@@ -21,6 +21,18 @@ type tcpClient struct {
 	id   string
 }
 
+type bp struct {
+	buf []byte
+}
+
+var bufPool = sync.Pool{
+	New: func() any {
+		return &bp{
+			buf: make([]byte, 512),
+		}
+	},
+}
+
 var (
 	serverConfig, tcpConns sync.Map
 	brokerConfig           *model.Config
@@ -164,8 +176,9 @@ func handleConnection(conn net.Conn) {
 }
 
 func read(conn net.Conn) ([]byte, error) {
-	buffer := make([]byte, 512)
-	n, err := conn.Read(buffer)
+	bp := bufPool.Get().(*bp)
+	defer bufPool.Put(bp)
+	n, err := conn.Read(bp.buf)
 	if err != nil {
 		if err == io.EOF {
 			return nil, fmt.Errorf("connection closed by peer")
@@ -174,7 +187,7 @@ func read(conn net.Conn) ([]byte, error) {
 	}
 
 	if n > 0 {
-		return buffer[:n], nil
+		return bp.buf[:n], nil
 	}
 	return nil, nil
 }
