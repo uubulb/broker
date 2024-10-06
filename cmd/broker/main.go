@@ -432,7 +432,7 @@ func handleCommandTask(profile string, task *pb.Task, result *pb.TaskResult) {
 			timeout.Stop()
 		}
 	}()
-	s, err := sshx.NewSSH(sc)
+	s, err := sshx.NewSSH(&sc)
 	if err != nil {
 		result.Data += err.Error()
 		result.Delay = float32(time.Since(startedAt).Seconds())
@@ -484,7 +484,7 @@ func handleTerminalTask(profile string, task *pb.Task) {
 		return
 	}
 
-	s, err := sshx.NewSSH(sc)
+	s, err := sshx.NewSSH(&sc)
 	if err != nil {
 		println("Terminal SSH建立连接失败")
 		return
@@ -577,7 +577,7 @@ func handleFMTask(profile string, task *pb.Task) {
 	}()
 	println("FM init", fmTask.StreamID)
 
-	s, err := sshx.NewSSH(sc)
+	s, err := sshx.NewSSH(&sc)
 	if err != nil {
 		remoteIO.Send(&pb.IOStreamData{Data: fm.CreateErr(err)})
 		return

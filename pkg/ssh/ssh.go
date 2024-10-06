@@ -22,10 +22,10 @@ type SSH struct {
 	Client  *ssh.Client
 	Session *ssh.Session
 
-	config model.SSHConfig
+	config *model.SSHConfig
 }
 
-func NewSSH(c model.SSHConfig) (*SSH, error) {
+func NewSSH(c *model.SSHConfig) (*SSH, error) {
 	s := &SSH{config: c}
 	if err := s.createConn(); err != nil {
 		return nil, err

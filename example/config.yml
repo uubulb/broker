@@ -8,7 +8,7 @@ servers:
     auth_password: Bearer test # optional
     fetch_interval: 10 # required
     data_type: 1 # required. view pkg/monitor/monitor.go for details 
-    version_suffix: -collector # optional, default "-broker"
+    version_suffix: -broker # optional, default "-broker"
     ssh: 
       enabled: false
       host: 10.0.0.1:22 # server:port
@@ -25,7 +25,7 @@ servers:
   # example2
   #   ...
 
-# nezha-agent fields
+# broker options
 debug: false
 ip_query: false
 use_ipv6_countrycode: false
