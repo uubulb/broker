@@ -6,6 +6,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/nezhahq/service v0.0.0-20240704142721-eba37f9cc709
 	github.com/pkg/sftp v1.13.6
+	github.com/puzpuzpuz/xsync/v3 v3.4.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	golang.org/x/crypto v0.26.0

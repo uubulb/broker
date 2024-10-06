@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/puzpuzpuz/xsync/v3"
 	"github.com/uubulb/broker/model"
 	"github.com/uubulb/broker/pkg/handler"
 	"github.com/uubulb/broker/pkg/util"
@@ -34,10 +35,12 @@ var bufPool = sync.Pool{
 }
 
 var (
-	serverConfig, tcpConns sync.Map
-	brokerConfig           *model.Config
-	httpClient             = &http.Client{}
-	listener               net.Listener
+	brokerConfig *model.Config
+	listener     net.Listener
+
+	serverConfig = xsync.NewMapOf[string, *model.Server]()
+	tcpConns     = xsync.NewMapOf[string, *tcpClient]()
+	httpClient   = &http.Client{}
 )
 
 const (
@@ -59,9 +62,8 @@ func StartTCPListener() {
 }
 
 func GetData(profile string, dataType uint8) (handler.Handler, error) {
-	cfgI, ok := serverConfig.Load(profile)
+	cfg, ok := serverConfig.Load(profile)
 	if ok {
-		cfg := cfgI.(*model.Server)
 		url := cfg.Source
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
@@ -92,8 +94,7 @@ func GetDataTCP(profile string, dataType uint8) (handler.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to receive TCP data: %v", err)
 	}
-	if cfgI, ok := serverConfig.Load(profile); ok {
-		cfg := cfgI.(*model.Server)
+	if cfg, ok := serverConfig.Load(profile); ok {
 		if len(data) > 0 {
 			return processData(cfg, data, dataType)
 		}
@@ -123,8 +124,7 @@ func processData(cfg *model.Server, data []byte, dataType uint8) (handler.Handle
 }
 
 func receive(profile string) ([]byte, error) {
-	if clientI, ok := tcpConns.Load(profile); ok {
-		client := clientI.(*tcpClient)
+	if client, ok := tcpConns.Load(profile); ok {
 		data, err := read(client.conn)
 		if err != nil {
 			client.conn.Close()
@@ -166,8 +166,7 @@ func handleConnection(conn net.Conn) {
 	_ = proto.Unmarshal(bin, pbData)
 	profile := pbData.GetConfigName()
 
-	if clientI, ok := tcpConns.Load(profile); ok {
-		existingClient := clientI.(*tcpClient)
+	if existingClient, ok := tcpConns.Load(profile); ok {
 		existingClient.conn.Close()
 	}
 

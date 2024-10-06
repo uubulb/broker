@@ -9,11 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/nezhahq/service"
 	"github.com/pkg/sftp"
+	"github.com/puzpuzpuz/xsync/v3"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -45,11 +45,12 @@ var mainCmd = &cobra.Command{
 }
 
 var (
-	brokerParam    BrokerParam
-	brokerConfig   model.Config
-	clientsMap     sync.Map
-	initializedMap sync.Map
-	sourcesMap     sync.Map
+	brokerParam  BrokerParam
+	brokerConfig model.Config
+
+	clientsMap     = xsync.NewMapOf[string, pb.NezhaServiceClient]()
+	initializedMap = xsync.NewMapOf[string, bool]()
+	sourcesMap     = xsync.NewMapOf[string, handler.Handler]()
 )
 
 const (
@@ -147,7 +148,7 @@ func run() {
 				if err != nil {
 					initializedMap.Store(profile, false)
 				} else {
-					sourcesMap.Store(profile, &source)
+					sourcesMap.Store(profile, source)
 					initializedMap.Store(profile, true)
 				}
 				sleepDuration := time.Second
@@ -168,9 +169,9 @@ func run() {
 				if source, ok := sourcesMap.Load(profile); ok {
 					conn := establish(config)
 					client := pb.NewNezhaServiceClient(conn)
-					clientsMap.Store(profile, &client)
+					clientsMap.Store(profile, client)
 
-					if err := registerAndExecuteTasks(profile, client, source.(*handler.Handler)); err != nil {
+					if err := registerAndExecuteTasks(profile, client, source); err != nil {
 						println("Error in registerAndExecuteTasks:", err)
 						retry(profile, conn)
 					}
@@ -292,11 +293,11 @@ func retry(profile string, conn *grpc.ClientConn) {
 	time.Sleep(delayWhenError)
 }
 
-func registerAndExecuteTasks(profile string, client pb.NezhaServiceClient, source *handler.Handler) error {
+func registerAndExecuteTasks(profile string, client pb.NezhaServiceClient, source handler.Handler) error {
 	timeOutCtx, cancel := context.WithTimeout(context.Background(), networkTimeOut)
 	defer cancel()
 
-	host := *source
+	host := source
 	if _, err := client.ReportSystemInfo(timeOutCtx, host.GetHost().PB()); err != nil {
 		return fmt.Errorf("上报系统信息失败：%w", err)
 	}
@@ -315,8 +316,7 @@ func reportStateDaemon(profile string, cfg model.Server) {
 	defer println("reportState exit", time.Now(), "=>", err)
 	for {
 		// 为了更准确的记录时段流量，inited 后再上传状态信息
-		initializedI, iOk := initializedMap.Load(profile)
-		if iOk && initializedI.(bool) {
+		if initialized, ok := initializedMap.Load(profile); initialized && ok {
 			lastReportHostInfo = reportState(profile, lastReportHostInfo)
 		} else {
 			lastReportHostInfo = time.Time{}
@@ -326,12 +326,10 @@ func reportStateDaemon(profile string, cfg model.Server) {
 }
 
 func reportState(profile string, lastReportHostInfo time.Time) time.Time {
-	sourceI, sOk := sourcesMap.Load(profile)
-	clientI, cOk := clientsMap.Load(profile)
+	source, sOk := sourcesMap.Load(profile)
+	client, cOk := clientsMap.Load(profile)
 	if sOk && cOk {
 		timeOutCtx, cancel := context.WithTimeout(context.Background(), networkTimeOut)
-		source := *sourceI.(*handler.Handler)
-		client := *clientI.(*pb.NezhaServiceClient)
 		_, err := client.ReportSystemState(timeOutCtx, source.GetState().PB())
 		cancel()
 		if err != nil {
@@ -406,8 +404,7 @@ func doTask(profile string, task *pb.Task) {
 		println("task not supported: ", task)
 		return
 	}
-	clientI, _ := clientsMap.Load(profile)
-	client := *clientI.(*pb.NezhaServiceClient)
+	client, _ := clientsMap.Load(profile)
 	client.ReportTask(context.Background(), &result)
 }
 
@@ -472,8 +469,7 @@ func handleTerminalTask(profile string, task *pb.Task) {
 		return
 	}
 
-	clientI, _ := clientsMap.Load(profile)
-	client := *clientI.(*pb.NezhaServiceClient)
+	client, _ := clientsMap.Load(profile)
 	remoteIO, err := client.IOStream(context.Background())
 	if err != nil {
 		println("Terminal IOStream失败：", err)
@@ -560,8 +556,7 @@ func handleFMTask(profile string, task *pb.Task) {
 		return
 	}
 
-	clientI, _ := clientsMap.Load(profile)
-	client := *clientI.(*pb.NezhaServiceClient)
+	client, _ := clientsMap.Load(profile)
 	remoteIO, err := client.IOStream(context.Background())
 	if err != nil {
 		println("Terminal IOStream失败：", err)
