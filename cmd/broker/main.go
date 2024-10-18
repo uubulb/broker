@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -16,9 +17,9 @@ import (
 	"github.com/puzpuzpuz/xsync/v3"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
 
 	"github.com/uubulb/broker/model"
 	"github.com/uubulb/broker/pkg/fm"
@@ -266,18 +267,39 @@ func establish(cfg model.Server) *grpc.ClientConn {
 		securityOption = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
 
-	keepaliveOptions := &keepalive.ClientParameters{
-		Timeout: networkTimeOut,
-	}
-
 	var conn *grpc.ClientConn
 	var err error
 	for {
-		conn, err = grpc.NewClient(cfg.Remote, securityOption, grpc.WithKeepaliveParams(*keepaliveOptions), grpc.WithPerRPCCredentials(&auth))
+		conn, err = grpc.NewClient(cfg.Remote, securityOption, grpc.WithPerRPCCredentials(&auth))
 		if err != nil {
-			println("Connection fail, retrying: ", err)
+			printf("Connection fail: %s, retrying", err)
 			time.Sleep(delayWhenError)
 		} else {
+			timeOutCtx, cancel := context.WithTimeout(context.Background(), networkTimeOut*2)
+			err := func(conn *grpc.ClientConn, ctx context.Context) error {
+				for {
+					s := conn.GetState()
+					switch s {
+					case connectivity.Idle:
+						conn.Connect()
+					case connectivity.Ready:
+						return nil
+					case connectivity.Shutdown:
+						return errors.New("connection closed")
+					default:
+					}
+					if !conn.WaitForStateChange(ctx, s) {
+						// ctx got timeout or canceled.
+						return ctx.Err()
+					}
+				}
+			}(conn, timeOutCtx)
+			cancel()
+			if err != nil {
+				printf("Connection fail: %s, retrying", err)
+				time.Sleep(delayWhenError)
+				continue
+			}
 			break
 		}
 	}
