@@ -18,7 +18,7 @@ Currently, Broker supports the following tasks:
 Other tasks that involve collecting data from local machine are not supported and should be handled directly using Nezha Agent.
 
 ## Data collectors available
-- [`nz-collector`](https://git.kuzu.uk/nz-collector.git/): A tiny system information collector for Linux systems.
+- [`nz-collector`](https://codeberg.org/uubulb/nz-collector): A tiny system information collector for Linux systems.
 
 You may add your own collector here if you like.
 
