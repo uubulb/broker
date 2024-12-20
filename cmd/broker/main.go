@@ -514,6 +514,8 @@ func handleTerminalTask(profile string, task *pb.Task) {
 		return
 	}
 
+	go ioStreamKeepAlive(remoteIO)
+
 	s, err := sshx.NewSSH(&sc)
 	if err != nil {
 		println("Terminal SSH建立连接失败")
@@ -555,7 +557,7 @@ func handleTerminalTask(profile string, task *pb.Task) {
 			return
 		}
 		if len(remoteData.Data) == 0 {
-			return
+			continue
 		}
 		switch remoteData.Data[0] {
 		case 0:
@@ -589,9 +591,11 @@ func handleFMTask(profile string, task *pb.Task) {
 	client, _ := clientsMap.Load(profile)
 	remoteIO, err := client.IOStream(context.Background())
 	if err != nil {
-		println("Terminal IOStream失败：", err)
+		println("FM IOStream失败：", err)
 		return
 	}
+
+	go ioStreamKeepAlive(remoteIO)
 
 	// 发送 StreamID
 	if err := remoteIO.Send(&pb.IOStreamData{Data: append([]byte{
@@ -626,7 +630,7 @@ func handleFMTask(profile string, task *pb.Task) {
 			return
 		}
 		if len(remoteData.Data) == 0 {
-			return
+			continue
 		}
 		fmc.DoTask(remoteData)
 	}
@@ -638,4 +642,14 @@ func println(v ...interface{}) {
 
 func printf(format string, v ...interface{}) {
 	util.Printf(brokerConfig.Debug, format, v...)
+}
+
+func ioStreamKeepAlive(stream pb.NezhaService_IOStreamClient) {
+	for {
+		if err := stream.Send(&pb.IOStreamData{Data: []byte{}}); err != nil {
+			printf("IOStream KeepAlive 失败: %v", err)
+			return
+		}
+		time.Sleep(time.Second * 30)
+	}
 }
