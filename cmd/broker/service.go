@@ -61,8 +61,6 @@ func serviceActions(cmd *cobra.Command, args []string) {
 		{brokerParam.ConfigPath != "config.yml", "-c", brokerParam.ConfigPath},
 		{brokerParam.DisableSyslog, "--disable-syslog", ""},
 		{brokerConfig.Debug, "-d", ""},
-		{brokerConfig.IPQuery, "--ip-query", ""},
-		{brokerConfig.UseIPv6CountryCode, "--use-ipv6-countrycode", ""},
 	}
 
 	for _, f := range flags {

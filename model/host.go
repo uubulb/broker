@@ -26,7 +26,7 @@ type HostState struct {
 	UdpConnCount   uint64              `json:"udp_conn_count"`
 	ProcessCount   uint64              `json:"process_count"`
 	Temperatures   []SensorTemperature `json:"temperatures"`
-	GPU            float64             `json:"gpu"`
+	GPU            []float64           `json:"gpu"`
 }
 
 func (s *HostState) PB() *pb.State {
@@ -69,8 +69,6 @@ type Host struct {
 	Arch            string   `json:"arch"`
 	Virtualization  string   `json:"virtualization"`
 	BootTime        uint64   `json:"boot_time"`
-	IP              string   `json:"ip"`
-	CountryCode     string   `json:"country_code"`
 	Version         string   `json:"version"`
 	GPU             []string `json:"gpu"`
 }
@@ -86,8 +84,6 @@ func (h *Host) PB() *pb.Host {
 		Arch:            h.Arch,
 		Virtualization:  h.Virtualization,
 		BootTime:        h.BootTime,
-		Ip:              h.IP,
-		CountryCode:     h.CountryCode,
 		Version:         h.Version,
 		Gpu:             h.GPU,
 	}

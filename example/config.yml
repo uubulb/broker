@@ -1,5 +1,5 @@
 # server configuration
-servers: 
+servers:
   example: # server name
     source: http://192.168.3.1:8888 # required if using HTTP
     source_type: 2 # 1->HTTP, 2->TCP
@@ -7,9 +7,9 @@ servers:
     auth_header: Authorization # optional
     auth_password: Bearer test # optional
     fetch_interval: 10 # required
-    data_type: 1 # required. view pkg/monitor/monitor.go for details 
+    data_type: 1 # required. view pkg/monitor/monitor.go for details
     version_suffix: -broker # optional, default "-broker"
-    ssh: 
+    ssh:
       enabled: false
       host: 10.0.0.1:22 # server:port
       use_key: false
@@ -17,10 +17,11 @@ servers:
       password: test
       key: ~/.ssh/id_rsa # must have use_key enabled to take effect
     remote: example.com:443 # required
-    password: test # required
+    agent_secret: test # required
+    uuid: 00000000-0000-0000-0000-000000000000 # required
     tls: false # optional, default to false
     insecure: false # optional, default to false
-    report_delay: 1 # optional, default to 1
+    report_delay: 1 # optional, default to 3
   # add more servers if you like
   # example2
   #   ...

@@ -46,8 +46,6 @@ func PB2DataNezha(d *pb.Data, name string) TypeNezha {
 			Arch:            h.GetArch(),
 			Virtualization:  h.GetVirtualization(),
 			BootTime:        h.GetBootTime(),
-			IP:              h.GetIp(),
-			CountryCode:     h.GetCountryCode(),
 			Version:         h.GetVersion() + name,
 			GPU:             h.GetGpu(),
 		},

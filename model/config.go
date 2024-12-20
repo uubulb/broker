@@ -21,7 +21,8 @@ type Server struct {
 	FetchInterval uint32 `mapstructure:"fetch_interval"`
 	SSH           SSHConfig
 	Remote        string
-	Password      string
+	AgentSecret   string `mapstructure:"agent_secret"`
+	UUID          string
 	TLS           bool
 	Insecure      bool
 	ReportDelay   uint32 `mapstructure:"report_delay"`
@@ -37,14 +38,11 @@ type SSHConfig struct {
 }
 
 type Config struct {
-	Servers            map[string]Server
-	Debug              bool
-	IPQuery            bool   `mapstructure:"ip_query"`
-	UseIPv6CountryCode bool   `mapstructure:"use_ipv6_country_code"`
-	IPReportPeriod     uint32 `mapstructure:"ip_report_period"`
-	DNS                []string
-	ListenAddr         string `mapstructure:"listen_addr"`
-	v                  *viper.Viper
+	Servers    map[string]Server `mapstructure:"servers"`
+	Debug      bool              `mapstructure:"debug"`
+	DNS        []string          `mapstructure:"dns"`
+	ListenAddr string            `mapstructure:"listen_addr"`
+	v          *viper.Viper
 }
 
 func (c *Config) Read(path string) error {
@@ -67,10 +65,6 @@ func (c *Config) Read(path string) error {
 		c.Servers[key] = server
 	}
 
-	if c.IPReportPeriod < 1 {
-		c.IPReportPeriod = 1800
-	}
-
 	if c.ListenAddr == "" {
 		return fmt.Errorf("listen_addr is required")
 	}
@@ -91,11 +85,14 @@ func validateServer(server *Server) error {
 	if server.Remote == "" {
 		return fmt.Errorf("server.remote is required")
 	}
-	if server.Password == "" {
-		return fmt.Errorf("server.password is required")
+	if server.AgentSecret == "" {
+		return fmt.Errorf("server.agent_secret is required")
+	}
+	if server.UUID == "" {
+		return fmt.Errorf("server.uuid is required")
 	}
 	if server.ReportDelay < 1 {
-		server.ReportDelay = 1
+		server.ReportDelay = 3
 	} else if server.ReportDelay > 4 {
 		server.ReportDelay = 4
 	}

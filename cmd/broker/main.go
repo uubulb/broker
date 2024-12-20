@@ -66,7 +66,7 @@ const (
 	TypeTCP
 )
 
-func init() {
+func setEnv() {
 	resolver.SetDefaultScheme("passthrough")
 	net.DefaultResolver.PreferGo = true // 使用 Go 内置的 DNS 解析器解析域名
 	net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -78,11 +78,10 @@ func init() {
 			dnsServers = brokerConfig.DNS
 		}
 		index := int(time.Now().Unix()) % int(len(dnsServers))
-		queue := generateQueue(index, len(dnsServers))
 		var conn net.Conn
 		var err error
-		for i := 0; i < len(queue); i++ {
-			conn, err = d.DialContext(ctx, "udp", dnsServers[queue[i]])
+		for i := 0; i < len(dnsServers); i++ {
+			conn, err = d.DialContext(ctx, "udp", dnsServers[util.RotateQueue1(index, i, len(dnsServers))])
 			if err == nil {
 				return conn, nil
 			}
@@ -99,8 +98,6 @@ func init() {
 	mainCmd.PersistentFlags().StringVar(&brokerParam.TempDir, "temp", "", "specify the temporary dir (default os.TempDir)")
 	mainCmd.PersistentFlags().BoolVar(&brokerParam.DisableSyslog, "disable-syslog", false, "print log to stderr")
 	mainCmd.PersistentFlags().BoolVarP(&brokerConfig.Debug, "debug", "d", false, "enable debug output")
-	mainCmd.PersistentFlags().BoolVar(&brokerConfig.IPQuery, "ip-query", false, "enable IP query")
-	mainCmd.PersistentFlags().BoolVar(&brokerConfig.UseIPv6CountryCode, "use-ipv6-countrycode", false, "use ipv6 address to lookup country code")
 	mainCmd.Flags().BoolVarP(&brokerParam.Version, "version", "v", false, "Print version and exit")
 
 	monitor.InitConfig(&brokerConfig)
@@ -114,6 +111,8 @@ func init() {
 }
 
 func main() {
+	setEnv()
+
 	if err := mainCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -127,11 +126,6 @@ func preRun(cmd *cobra.Command, args []string) {
 }
 
 func run() {
-	// 更新IP信息
-	if brokerConfig.IPQuery {
-		go monitor.UpdateIP(brokerConfig.UseIPv6CountryCode, brokerConfig.IPReportPeriod)
-	}
-
 	done := make(chan struct{})
 	monitor.StartTCPListener()
 
@@ -164,18 +158,14 @@ func run() {
 		}(profile, config)
 
 		go func(profile string, config model.Server) {
-			reportStateDaemon(profile, config)
-		}(profile, config)
-
-		go func(profile string, config model.Server) {
 			for {
 				if source, ok := sourcesMap.Load(profile); ok {
 					conn := establish(config)
 					client := pb.NewNezhaServiceClient(conn)
 					clientsMap.Store(profile, client)
 
-					if err := registerAndExecuteTasks(profile, client, source); err != nil {
-						println("Error in registerAndExecuteTasks:", err)
+					if err := register(profile, client, source, config); err != nil {
+						printf("Error in register: %v", err)
 						retry(profile, conn)
 					}
 				} else {
@@ -255,7 +245,8 @@ func runService(action string, flags []string) {
 
 func establish(cfg model.Server) *grpc.ClientConn {
 	auth := model.AuthHandler{
-		ClientSecret: cfg.Password,
+		ClientSecret: cfg.AgentSecret,
+		ClientUUID:   cfg.UUID,
 	}
 
 	var securityOption grpc.DialOption
@@ -317,73 +308,87 @@ func retry(profile string, conn *grpc.ClientConn) {
 	time.Sleep(delayWhenError)
 }
 
-func registerAndExecuteTasks(profile string, client pb.NezhaServiceClient, source handler.Handler) error {
+func register(profile string, client pb.NezhaServiceClient, source handler.Handler, cfg model.Server) error {
 	timeOutCtx, cancel := context.WithTimeout(context.Background(), networkTimeOut)
 	defer cancel()
 
 	host := source
-	if _, err := client.ReportSystemInfo(timeOutCtx, host.GetHost().PB()); err != nil {
+	if _, err := client.ReportSystemInfo2(timeOutCtx, host.GetHost().PB()); err != nil {
 		return fmt.Errorf("上报系统信息失败：%w", err)
 	}
 
-	tasks, err := client.RequestTask(context.Background(), host.GetHost().PB())
+	errCh := make(chan error)
+	tasks, err := client.RequestTask(context.Background())
 	if err != nil {
 		return fmt.Errorf("请求任务失败：%w", err)
 	}
+	go receiveTasksDaemon(profile, tasks, errCh)
 
-	return receiveTasks(profile, tasks)
+	reportState, err := client.ReportSystemState(context.Background())
+	if err != nil {
+		return fmt.Errorf("请求任务失败：%w", err)
+	}
+	go reportStateDaemon(profile, cfg, reportState, errCh)
+
+	for i := 0; i < 2; i++ {
+		err = <-errCh
+		if i == 0 {
+			tasks.CloseSend()
+			reportState.CloseSend()
+		}
+		printf("worker exit to main: %v", err)
+	}
+	close(errCh)
+
+	return errors.New("session ended")
 }
 
-func reportStateDaemon(profile string, cfg model.Server) {
+func reportStateDaemon(profile string, cfg model.Server, statClient pb.NezhaService_ReportSystemStateClient, ch chan<- error) {
 	var lastReportHostInfo time.Time
 	var err error
-	defer println("reportState exit", time.Now(), "=>", err)
 	for {
-		// 为了更准确的记录时段流量，inited 后再上传状态信息
-		if initialized, ok := initializedMap.Load(profile); initialized && ok {
-			lastReportHostInfo = reportState(profile, lastReportHostInfo)
-		} else {
-			lastReportHostInfo = time.Time{}
+		lastReportHostInfo, err = reportState(statClient, profile, lastReportHostInfo)
+		if err != nil {
+			ch <- fmt.Errorf("reportStateDaemon exit: %v", err)
+			return
 		}
 		time.Sleep(time.Second * time.Duration(cfg.ReportDelay))
 	}
 }
 
-func reportState(profile string, lastReportHostInfo time.Time) time.Time {
+func reportState(statClient pb.NezhaService_ReportSystemStateClient, profile string, lastReportHostInfo time.Time) (time.Time, error) {
 	source, sOk := sourcesMap.Load(profile)
 	client, cOk := clientsMap.Load(profile)
 	if sOk && cOk {
-		timeOutCtx, cancel := context.WithTimeout(context.Background(), networkTimeOut)
-		_, err := client.ReportSystemState(timeOutCtx, source.GetState().PB())
-		cancel()
-		if err != nil {
-			println("reportState error", err)
-			time.Sleep(delayWhenError)
+		if initialized, _ := initializedMap.Load(profile); initialized {
+			if err := statClient.Send(source.GetState().PB()); err != nil {
+				return lastReportHostInfo, err
+			}
+			_, err := statClient.Recv()
+			if err != nil {
+				return lastReportHostInfo, err
+			}
 		}
+
 		// 每10分钟发送一次硬件信息
 		if lastReportHostInfo.Before(time.Now().Add(-10 * time.Minute)) {
 			lastReportHostInfo = time.Now()
 			host := source.GetHost()
-			client.ReportSystemInfo(context.Background(), host.PB())
-			if host.IP != "" {
-				client.LookupGeoIP(context.Background(), &pb.GeoIP{Ip: host.IP})
-			} else if brokerConfig.IPQuery && monitor.GeoQueryIP != "" {
-				client.LookupGeoIP(context.Background(), &pb.GeoIP{Ip: monitor.GeoQueryIP})
-			}
+			client.ReportSystemInfo2(context.Background(), host.PB())
 		}
 	}
 
-	return lastReportHostInfo
+	return lastReportHostInfo, nil
 }
 
-func receiveTasks(profile string, tasks pb.NezhaService_RequestTaskClient) error {
+func receiveTasksDaemon(profile string, tasks pb.NezhaService_RequestTaskClient, ch chan<- error) {
+	var task *pb.Task
 	var err error
-	defer println("receiveTasks exit", time.Now(), "=>", err)
 	for {
-		var task *pb.Task
 		task, err = tasks.Recv()
 		if err != nil {
-			return err
+			ch <- fmt.Errorf("receiveTasks exit: %v", err)
+			return
 		}
 		go func() {
 			defer func() {
@@ -391,45 +396,46 @@ func receiveTasks(profile string, tasks pb.NezhaService_RequestTaskClient) error
 					println("task panic", task, err)
 				}
 			}()
-			doTask(profile, task)
+			result := doTask(profile, task)
+			if result != nil {
+				if err := tasks.Send(result); err != nil {
+					printf("send task result error: %v", err)
+				}
+			}
 		}()
 	}
 }
 
-func doTask(profile string, task *pb.Task) {
+func doTask(profile string, task *pb.Task) *pb.TaskResult {
 	var result pb.TaskResult
 	result.Id = task.GetId()
 	result.Type = task.GetType()
 	switch task.GetType() {
 	case model.TaskTypeHTTPGet:
-		return // not implemented
+		return nil // not implemented
 	case model.TaskTypeICMPPing:
-		return // not implemented
+		return nil // not implemented
 	case model.TaskTypeTCPPing:
-		return // not implemented
+		return nil // not implemented
 	case model.TaskTypeCommand:
 		handleCommandTask(profile, task, &result)
 	case model.TaskTypeUpgrade:
-		return
+		return nil
 	case model.TaskTypeTerminalGRPC:
 		handleTerminalTask(profile, task)
-		return
+		return nil
 	case model.TaskTypeNAT:
-		return // not implemented
-	case model.TaskTypeReportHostInfo:
-		reportState(profile, time.Time{})
-		return
+		return nil // not implemented
 	case model.TaskTypeFM:
 		handleFMTask(profile, task)
-		return
+		return nil
 	case model.TaskTypeKeepalive:
-		return
+		return nil
 	default:
 		println("task not supported: ", task)
-		return
+		return nil
 	}
-	client, _ := clientsMap.Load(profile)
-	client.ReportTask(context.Background(), &result)
+	return &result
 }
 
 func handleCommandTask(profile string, task *pb.Task, result *pb.TaskResult) {
@@ -624,18 +630,6 @@ func handleFMTask(profile string, task *pb.Task) {
 		}
 		fmc.DoTask(remoteData)
 	}
-}
-
-func generateQueue(start int, size int) []int {
-	var result []int
-	for i := start; i < start+size; i++ {
-		if i < size {
-			result = append(result, i)
-		} else {
-			result = append(result, i-size)
-		}
-	}
-	return result
 }
 
 func println(v ...interface{}) {
